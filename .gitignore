@@ -9,3 +9,4 @@ k8s/eck/ear/elastic-packages
 k8s/eck/eer/downloads
 k8s/eck/elser/models
 k8s/eck/geoip/elastic-packages
+terraform/terraform.tfstate
