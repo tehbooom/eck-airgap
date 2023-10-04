@@ -11,13 +11,6 @@ resource "google_compute_instance" "registry" {
 
   tags = ["rke2"]
 
-  labels = {
-    division = "field"
-    org      = "delivery"
-    project  = "aleccarpenter"
-    team     = "us-pubsec-consulting"
-  }
-
   scheduling {
     automatic_restart   = true
     on_host_maintenance = "MIGRATE"
@@ -59,13 +52,6 @@ resource "google_compute_instance" "loadbalancer" {
 
   tags = ["public", "rke2"]
 
-  labels = {
-    division = "field"
-    org      = "delivery"
-    project  = "aleccarpenter"
-    team     = "us-pubsec-consulting"
-  }
-
   scheduling {
     automatic_restart   = true
     on_host_maintenance = "MIGRATE"
@@ -101,12 +87,6 @@ resource "google_compute_instance" "servers" {
   name  = "rke2-airgap-server-${count.index + 1}"
   count = var.servers
   zone  = var.gcp_zone
-  labels = {
-    division = "field"
-    org      = "delivery"
-    project  = "aleccarpenter"
-    team     = "us-pubsec-consulting"
-  }
   machine_type   = "e2-standard-2"
   can_ip_forward = false
 
@@ -143,12 +123,6 @@ resource "google_compute_instance" "workers" {
   name  = "rke2-airgap-worker-${count.index + 1}"
   count = var.workers
   zone  = var.gcp_zone
-  labels = {
-    division = "field"
-    org      = "delivery"
-    project  = "aleccarpenter"
-    team     = "us-pubsec-consulting"
-  }
   machine_type   = "e2-standard-4"
   can_ip_forward = false
 

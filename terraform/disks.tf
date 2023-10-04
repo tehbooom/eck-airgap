@@ -4,12 +4,6 @@ resource "google_compute_disk" "registry" {
   type = "pd-standard"
   zone = var.gcp_zone
   size = "100"
-  labels = {
-    division = "field"
-    org      = "delivery"
-    project  = "aleccarpenter"
-    team     = "us-pubsec-consulting"
-  }
 }
 
 resource "google_compute_disk" "worker-share" {
@@ -18,12 +12,6 @@ resource "google_compute_disk" "worker-share" {
   type  = "pd-standard"
   zone  = var.gcp_zone
   size  = "100"
-  labels = {
-    division = "field"
-    org      = "delivery"
-    project  = "aleccarpenter"
-    team     = "us-pubsec-consulting"
-  }
 }
 
 resource "google_compute_disk" "worker-data" {
@@ -32,10 +20,4 @@ resource "google_compute_disk" "worker-data" {
   type  = "pd-standard"
   zone  = var.gcp_zone
   size  = "100"
-  labels = {
-    division = "field"
-    org      = "delivery"
-    project  = "aleccarpenter"
-    team     = "us-pubsec-consulting"
-  }
 }
