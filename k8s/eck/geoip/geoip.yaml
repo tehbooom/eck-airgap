@@ -1,0 +1,47 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: geoip-mirror
+  name: geoip-mirror
+  namespace: repo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: geoip-mirror
+  template:
+    metadata:
+      labels:
+        app: geoip-mirror
+    spec:
+      containers:
+      - image: <your_registry_here>:5000/geoip
+        name: geoip-mirror
+        ports:
+          - containerPort: 80
+            name: http
+        resources:
+          requests:
+            cpu: 1000m
+            memory: 512Mi
+          limits:
+            cpu: 1000m
+            memory: 1024Mi            
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: geoip-mirror
+  name: geoip-mirror
+  namespace: repo
+spec:
+  ports:
+  - name: http
+    port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: geoip-mirror

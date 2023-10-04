@@ -1,0 +1,72 @@
+---
+- name: Upload download.sh for custom images
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../k8s/eck/{{ item }}/download.sh"
+    dest: "/opt/{{ item }}-download.sh"
+    mode: '750'
+    owner: root
+    group: root
+  loop:
+    - ear
+    - eer
+    - elser
+    - "{{ 'geoip' if LICENSE is defined else '' }}"
+  when: "item != ''"
+
+- name: Upload nginx conf for eer
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../k8s/eck/eer/nginx.conf"
+    dest: "/opt/registry/images/eer/nginx.conf"
+    mode: '750'
+    owner: root
+    group: root
+
+- name: Execute scripts
+  ansible.builtin.shell: "/opt/{{ item }}-download.sh"
+  args:
+    chdir: "/opt/"
+  loop:
+    - ear
+    - eer
+    - elser
+
+- name: Execute geoip script
+  ansible.builtin.shell: "/opt/geoip-download.sh {{ LICENSE }}"
+  args:
+    chdir: /opt/registry/images/geoip
+  when: LICENSE is defined
+
+- name: Upload dockerfiles for custom images
+  ansible.builtin.copy:
+    src: "{{ playbook_dir }}/../k8s/eck/{{ item }}/dockerfile"
+    dest: "/opt/registry/images/{{ item }}/Dockerfile"
+    mode: '640'
+  loop:
+    - ear
+    - eer
+    - elser
+    - "{{ 'geoip' if LICENSE is defined else '' }}"
+  when: "item != ''"
+
+- name: Build custom images
+  containers.podman.podman_image:
+    name: "{{ item }}"
+    path: "/opt/registry/images/{{ item }}"
+    build:
+      format: oci
+  loop:
+    - ear
+    - eer
+    - elser
+    - "{{ 'geoip' if LICENSE is defined else '' }}"
+  when: "item != ''"
+
+- name: Push custom images
+  ansible.builtin.shell: |
+    podman tag {{ item }} {{ inventory_hostname }}:5000/{{ item }}
+    podman push {{ inventory_hostname }}:5000/{{ item }}
+  loop:
+    - ear
+    - eer
+    - elser
+    - geoip

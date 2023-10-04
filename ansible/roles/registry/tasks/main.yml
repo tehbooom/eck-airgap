@@ -1,0 +1,142 @@
+---
+- name: Create directories
+  ansible.builtin.file:
+    path: /opt/registry
+    state: directory
+    mode: '0740'
+
+- name: Create filesystem
+  ansible.builtin.command:
+    sudo mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/sdb
+
+- name: Mount /opt/registry
+  ansible.posix.mount:
+    path: /opt/registry
+    src: /dev/sdb
+    fstype: ext4
+    state: mounted
+    opts: defaults,noexec,nosuid,nodev
+
+- name: Get UUID of new mount
+  ansible.builtin.command:
+    blkid /dev/sdb
+  register: uuid
+
+- name: Update fstab
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    insertafter: EOF
+    line: 'UUID={{ uuid.stdout | regex_search("(\w+-\w+-\w+-\w+-\w+)") }} /opt/registry ext4 defaults,noexec,nosuid,nodev 0 2'
+
+- name: Create directories
+  ansible.builtin.file:
+    path: "/opt/registry/{{ item }}"
+    state: directory
+    mode: '0740'
+  loop:
+    - data
+    - certs
+    - images/ear
+    - images/eer
+    - images/elser
+    - images/geoip
+
+- name: Open firewall port for registry
+  ansible.posix.firewalld:
+    port: "5000/tcp"
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Install deps
+  ansible.builtin.dnf:
+    name: "{{ item }}"
+    state: present
+  loop:
+    - podman
+    - wget
+    - unzip
+    - jq
+
+- name: Update podman image location
+  ansible.builtin.lineinfile:
+    path: /etc/containers/storage.conf
+    regexp: '^graphroot = '
+    line: graphroot = "/opt/registry/images"
+
+- name: Apply new SELinux file context to filesystem
+  ansible.builtin.command: restorecon -R -v /opt/registry/images
+
+- name: Create cert key pair
+  ansible.builtin.command:
+    argv:
+      - openssl
+      - req
+      - -x509
+      - -newkey
+      - rsa:4096
+      - -keyout
+      - /opt/registry/certs/registry.key
+      - -out
+      - /opt/registry/certs/registry.crt
+      - -sha256
+      - -days
+      - 3650
+      - -nodes
+      - -subj
+      - "/C=US/ST=California/L=Mountain View/O=Elastic/OU=air-gap/CN={{ hostvars[groups['registry'][0]]['ansible_default_ipv4']['address'] }}"
+      - -addext
+      - "subjectAltName = DNS:{{ inventory_hostname }}"
+
+- name: Trust new cert
+  ansible.builtin.shell: |
+    cp /opt/registry/certs/registry.crt /etc/pki/ca-trust/source/anchors/
+    update-ca-trust
+
+- name: Grab the new cert for nodes to trust
+  ansible.builtin.fetch:
+    src: /opt/registry/certs/registry.crt
+    dest: "{{ playbook_dir }}/roles/pre_rke2/files/registry.crt"
+    flat: true
+
+- name: Run container
+  containers.podman.podman_container:
+    name: registry
+    image: registry:2
+    state: started
+    ports:
+      - "5000:5000"
+    restart_policy: always
+    detach: true
+    volumes:
+      - /opt/registry/data:/var/lib/registry:z
+      - /opt/registry/certs:/certs:z
+    env:
+      REGISTRY_HTTP_TLS_CERTIFICATE: "/certs/registry.crt"
+      REGISTRY_HTTP_TLS_KEY: "/certs/registry.key"
+
+- name: Build and push custom images
+  ansible.builtin.include_tasks: custom_images.yml
+
+- name: Pull images
+  containers.podman.podman_image:
+    name: "{{ item }}"
+  loop: "{{ lookup('file', '{{ playbook_dir }}/../images.txt').splitlines() }}"
+  timeout: 360
+  ignore_errors: true # large containers cause module to fail even when it is downloaded
+
+- name: Push images from images.txt
+  ansible.builtin.shell: |
+    podman tag {{ item }} {{ inventory_hostname }}:5000/{{ item.split('/')[1] }}/{{ item.split('/')[2] }}
+    podman push {{ inventory_hostname }}:5000/{{ item.split('/')[1] }}/{{ item.split('/')[2] }} --remove-signatures
+  loop: "{{ lookup('file', '{{ playbook_dir }}/../images.txt').splitlines() }}"
+  timeout: 500
+  ignore_errors: true # When automating the EPR tag and push ansible will hang for an unknown reason; same with other large images
+
+- name: Push images from images.txt # Ensuring EPR is actually tagged and pushed
+  ansible.builtin.shell: |
+    podman tag {{ item }} {{ inventory_hostname }}:5000/{{ item.split('/')[1] }}/{{ item.split('/')[2] }}
+    podman push {{ inventory_hostname }}:5000/{{ item.split('/')[1] }}/{{ item.split('/')[2] }} --remove-signatures
+  loop: "{{ lookup('file', '{{ playbook_dir }}/../images.txt').splitlines() }}"
+  timeout: 500
+  when: '"package-registry" in item'

@@ -1,0 +1,45 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elser
+  namespace: repo
+  labels:
+    app: elser
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elser
+  template:
+    metadata:
+      name: elser
+      labels:
+        app: elser
+    spec:
+      containers:
+        - name: elser
+          image: <your_registry_here>:5000/elser
+          resources:
+            requests:
+              cpu: 125m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi                    
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: elser
+  name: elser
+  namespace: repo
+spec:
+  ports:
+  - port: 80
+    name: http
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: elser

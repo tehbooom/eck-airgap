@@ -1,0 +1,46 @@
+---
+- name: Registry play
+  hosts: registry
+  become: true
+  roles:
+    - role: registry
+
+- name: Load balancer play
+  hosts: loadbalancer
+  become: true
+  roles:
+    - role: loadbalancer
+
+- name: Server play
+  hosts: rke2_servers
+  any_errors_fatal: true
+  become: true
+  roles:
+    - role: pre_rke2
+    - role: rke2_server
+  serial: 1
+
+- name: Agent play
+  hosts: rke2_agents
+  any_errors_fatal: true
+  become: true
+  roles:
+    - role: pre_rke2
+    - role: rke2_agent
+  serial: 3
+
+- name: Fetch Kube config.yml
+  hosts: rke2_servers
+  become: true
+  tasks:
+    - name: Update IP
+      ansible.builtin.lineinfile:
+        path: "/etc/rancher/rke2/rke2.yaml"
+        regexp: "    server: https://127.0.0.1:6443"
+        line: "    server: https://{{ hostvars[groups['loadbalancer'][0]]['ansible_host'] }}:6443"
+
+    - name: Grab kube config
+      ansible.builtin.fetch:
+        src: /etc/rancher/rke2/rke2.yaml
+        dest: "{{ playbook_dir }}/config"
+        flat: true

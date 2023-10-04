@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: eer
+  namespace: repo
+  labels:
+    app: eer
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: eer
+  template:
+    metadata:
+      name: eer
+      labels:
+        app: eer
+    spec:
+      containers:
+        - name: eer
+          image: <your_registry_here>:5000/eer
+          resources:
+            requests:
+              cpu: 125m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: eer
+  name: eer
+  namespace: repo
+spec:
+  ports:
+  - port: 80
+    protocol: TCP
+    targetPort: 80
+  selector:
+    app: eer

@@ -1,0 +1,47 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ear
+  namespace: repo
+  labels:
+    app: ear
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: ear
+  template:
+    metadata:
+      name: ear
+      labels:
+        app: ear
+    spec:
+      containers:
+        - name: ear
+          image: <your_registry_here>:5000/ear
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: 125m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: ear
+  name: ear
+  namespace: repo
+spec:
+  ports:
+  - port: 80
+    name: http
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: ear

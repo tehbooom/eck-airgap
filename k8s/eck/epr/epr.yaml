@@ -1,0 +1,48 @@
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: elastic-package-registry
+  namespace: repo
+  labels:
+    app: elastic-package-registry
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: elastic-package-registry
+  template:
+    metadata:
+      name: elastic-package-registry
+      labels:
+        app: elastic-package-registry
+    spec:
+      containers:
+        - name: epr
+          image: <your_registry_here>:5000/package-registry/distribution:8.9.0 
+          ports:
+            - containerPort: 8080
+              name: http
+          resources:
+            requests:
+              cpu: 125m
+              memory: 128Mi
+            limits:
+              cpu: 1000m
+              memory: 512Mi                    
+---
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: elastic-package-registry
+  name: elastic-package-registry
+  namespace: repo
+spec:
+  ports:
+  - port: 80
+    name: http
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: elastic-package-registry

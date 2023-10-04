@@ -1,0 +1,3 @@
+FROM nginx:latest
+
+COPY ./elastic-packages/ /usr/share/nginx/html/

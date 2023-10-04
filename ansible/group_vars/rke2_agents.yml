@@ -1,0 +1,5 @@
+---
+rke2_config:
+  write-kubeconfig-mode: "0640"
+
+registry_config_file_path: "{{ playbook_dir }}/registries.yml"

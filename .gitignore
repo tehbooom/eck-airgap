@@ -1,0 +1,11 @@
+.vscode
+terraform/.terraform
+terraform/.terraform.lock.hcl
+terraform/terraform.tfstate.backup
+ansible/ansible.log
+ansible/config
+ansible/roles/pre_rke2/files/registry.crt
+k8s/eck/ear/elastic-packages
+k8s/eck/eer/downloads
+k8s/eck/elser/models
+k8s/eck/geoip/elastic-packages

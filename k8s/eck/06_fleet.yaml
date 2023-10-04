@@ -1,0 +1,149 @@
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: manage-agent-hostpath-permissions
+  namespace: prod
+spec:
+  selector:
+    matchLabels:
+      name: manage-agent-hostpath-permissions
+  template:
+    metadata:
+      labels:
+        name: manage-agent-hostpath-permissions
+    spec:
+      serviceAccountName: elastic-agent 
+      volumes:
+        - hostPath:
+            path: /var/lib/elastic-agent
+            type: DirectoryOrCreate
+          name: "agent-data"
+      initContainers:
+        - name: manage-agent-hostpath-permissions
+          image: registry.access.redhat.com/ubi8/ubi-minimal:latest 
+          resources:
+            limits:
+              cpu: 100m
+              memory: 32Mi
+          securityContext:
+            privileged: true 
+            runAsUser: 0
+          volumeMounts:
+            - mountPath: /var/lib/elastic-agent
+              name: agent-data
+          command:
+          - 'bash'
+          - '-e'
+          - '-c'
+          - |-
+            # Adjust this with /var/lib/elastic-agent/YOUR-NAMESPACE/YOUR-AGENT-NAME/state
+            # Multiple directories are supported for the fleet-server + agent use case.
+            dirs=(
+              "/var/lib/elastic-agent/prod/elastic-agent/state"
+              "/var/lib/elastic-agent/prod/fleet-server/state"
+              )
+            for dir in ${dirs[@]}; do
+              mkdir -p "${dir}"
+              # chcon is only required when running an an SELinux-enabled/OpenShift environment.
+              chcon -Rt svirt_sandbox_file_t "${dir}"
+              chmod g+rw "${dir}"
+              # Gid 1000 is the default group at which the Agent container runs. Adjust as necessary if `runAsGroup` has been modified.
+              chgrp 1000 "${dir}"
+              if [ -n "$(ls -A ${dir} 2>/dev/null)" ]
+              then
+                # Gid 1000 is the default group at which the Agent container runs. Adjust as necessary if `runAsGroup` has been modified.
+                chgrp 1000 "${dir}"/*
+                chmod g+rw "${dir}"/*
+              fi
+            done
+      containers:
+        - name: sleep
+          image: docker.io/rancher/pause:3.6
+---
+apiVersion: agent.k8s.elastic.co/v1alpha1
+kind: Agent
+metadata:
+  name: fleet-server
+  namespace: prod
+spec:
+  version: 8.9.0
+  kibanaRef:
+    name: kibana
+  elasticsearchRefs:
+  - name: elasticsearch
+  mode: fleet
+  fleetServerEnabled: true
+  policyID: eck-fleet-server
+  deployment:
+    replicas: 1
+    podTemplate:
+      spec:
+        serviceAccountName: elastic-agent
+        automountServiceAccountToken: true
+        securityContext:
+          runAsUser: 0
+---
+apiVersion: agent.k8s.elastic.co/v1alpha1
+kind: Agent
+metadata: 
+  name: elastic-agent
+  namespace: prod
+spec:
+  version: 8.9.0
+  kibanaRef:
+    name: kibana
+  fleetServerRef: 
+    name: fleet-server
+  mode: fleet
+  policyID: eck-agent
+  daemonSet:
+    podTemplate:
+      spec:
+        serviceAccountName: elastic-agent
+        automountServiceAccountToken: true
+        securityContext:
+          runAsUser: 0      
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: elastic-agent
+  namespace: prod
+rules:
+- apiGroups: [""] # "" indicates the core API group
+  resources:
+  - pods
+  - nodes
+  - namespaces
+  verbs:
+  - get
+  - watch
+  - list
+- apiGroups: ["coordination.k8s.io"]
+  resources:
+  - leases
+  verbs:
+  - get
+  - create
+  - update
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: elastic-agent
+  namespace: prod
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: elastic-agent
+  namespace: prod
+subjects:
+- kind: ServiceAccount
+  name: elastic-agent
+  namespace: prod
+roleRef:
+  kind: ClusterRole
+  name: elastic-agent
+  apiGroup: rbac.authorization.k8s.io

@@ -1,0 +1,16 @@
+---
+
+- name: Restart systemd-sysctl
+  service:
+    state: restarted
+    name: systemd-sysctl
+
+- name: Restart rke2-server
+  service:
+    state: restarted
+    name: rke2-server
+
+- name: Restart rke2-agent
+  service:
+    state: restarted
+    name: rke2-agent

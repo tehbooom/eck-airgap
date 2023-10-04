@@ -1,0 +1,121 @@
+---
+apiVersion: elasticsearch.k8s.elastic.co/v1
+kind: Elasticsearch
+metadata:
+  name: monitor
+  namespace: monitor
+spec:
+  version: 8.9.0
+  nodeSets:
+  - name: es
+    count: 3
+    podTemplate:
+      spec:
+        containers:
+          - name: elasticsearch
+            securityContext:
+              seccompProfile:
+                type: RuntimeDefault
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+        initContainers:
+          - name: elastic-internal-init-filesystem
+            securityContext:
+              seccompProfile:
+                type: RuntimeDefault
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+          - name: elastic-internal-suspend
+            securityContext:
+              seccompProfile:
+                type: RuntimeDefault
+              allowPrivilegeEscalation: false
+              capabilities:
+                drop:
+                - ALL
+              readOnlyRootFilesystem: true
+              runAsNonRoot: true
+    config:
+      node.store.allow_mmap: false
+    volumeClaimTemplates:
+    - metadata:
+        name: elasticsearch-data
+      spec:
+        accessModes:
+        - ReadWriteOnce
+        resources:
+          requests:
+            storage: 10Gi
+        storageClassName: longhorn
+---
+apiVersion: kibana.k8s.elastic.co/v1
+kind: Kibana
+metadata:
+  name: monitor
+  namespace: monitor
+spec:
+  version: 8.9.0
+  count: 1
+  podTemplate:
+    spec:
+      containers:
+        - name: kibana
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+      initContainers:
+        - name: elastic-internal-init-config
+          securityContext:
+            seccompProfile:
+              type: RuntimeDefault
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop:
+              - ALL
+            readOnlyRootFilesystem: true
+            runAsNonRoot: true
+            runAsUser: 1000
+  elasticsearchRef:
+    name: monitor
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: monitor-ingress
+  namespace: monitor
+  annotations:
+    cert-manager.io/cluster-issuer: "ca-issuer"
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: "false" 
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS" 
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - monitor.air-gap.demo
+    secretName: monitor-tls
+  rules:
+  - host: monitor.air-gap.demo
+    http:
+        paths:
+        - pathType: Prefix
+          path: /
+          backend:
+            service:
+              name: monitor-kb-http
+              port:
+                number: 5601

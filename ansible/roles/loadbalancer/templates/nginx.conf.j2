@@ -1,0 +1,61 @@
+user nginx;
+worker_processes 4;
+worker_rlimit_nofile 40000;
+error_log /var/log/nginx/error.log;
+pid /run/nginx.pid;
+
+# Load dynamic modules. See /usr/share/doc/nginx/README.dynamic.
+include /usr/share/nginx/modules/*.conf;
+
+events {
+  worker_connections 8192;
+}
+
+stream {
+  upstream backend {
+    least_conn;
+    {% for host in groups['rke2_servers'] %}        
+    server {{ host }}:9345 max_fails=3 fail_timeout=5s;
+    {% endfor %}
+   }
+  server {
+
+    listen 9345;
+
+    proxy_pass backend;
+  }
+
+  upstream rancher_api {
+    least_conn;
+    {% for host in groups['rke2_servers'] %} 
+    server  {{ host }}:6443 max_fails=3 fail_timeout=5s;
+    {% endfor %}
+  }
+  server {
+    listen     6443;
+    proxy_pass rancher_api;
+  }
+
+  upstream rancher_http {
+    least_conn;
+    {% for host in groups['rke2_agents'] %} 
+    server {{ host }}:80 max_fails=3 fail_timeout=5s;
+    {% endfor %}
+  }
+  server {
+    listen     80;
+    proxy_pass rancher_http;
+  }
+
+  upstream rancher_https {
+    least_conn;
+    
+    {% for host in groups['rke2_agents'] %} 
+    server {{ host }}:443 max_fails=3 fail_timeout=5s;
+    {% endfor %}
+  }
+  server {
+    listen     443;
+    proxy_pass rancher_https;
+  }
+}

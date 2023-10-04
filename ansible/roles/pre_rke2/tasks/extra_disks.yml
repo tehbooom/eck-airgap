@@ -1,0 +1,73 @@
+---
+- name: Install deps
+  ansible.builtin.dnf:
+    name:
+      - nfs4-acl-tools
+      - nfs-utils
+      - iscsi-initiator-utils
+      - lvm2
+
+- name: Add deps for longhorn
+  ansible.builtin.shell: |
+    echo "InitiatorName=$(/sbin/iscsi-iname)" > /etc/iscsi/initiatorname.iscsi
+    systemctl enable iscsid
+    systemctl start iscsid
+
+- name: LVM for /var
+  ansible.builtin.shell: |
+    pvcreate /dev/sdc
+    vgcreate vg_var /dev/sdc
+    lvcreate -n lv_var -l 100%FREE vg_var
+    systemctl stop fapolicyd
+    mkfs.xfs /dev/mapper/vg_var-lv_var
+
+- name: Create filesystems
+  ansible.builtin.command:
+    mkfs.ext4 -m 0 -E lazy_itable_init=0,lazy_journal_init=0,discard /dev/sdb
+  loop:
+    - /dev/sdb
+
+- name: Mount /var/
+  ansible.builtin.shell: |
+    mkdir /var1
+    mount /dev/mapper/vg_var-lv_var /var1
+    cd /var
+    cp -dpRx * /var1/
+    umount /var1
+    cd ..
+    umount -l /var
+    mount /dev/mapper/vg_var-lv_var /var
+    restorecon -vvFR /var
+    rm -rf /var1
+
+- name: Update fstab for /var
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '/dev/sda4 /var xfs defaults,rw,nosuid,nodev,noexec,relatime 0 2'
+    replace: '/dev/mapper/vg_var-lv_var /var xfs defaults,rw,nosuid,nodev,exec,relatime 0 2'
+
+- name: Mount /share
+  ansible.posix.mount:
+    path: /share
+    src: /dev/sdb
+    fstype: ext4
+    state: mounted
+    opts: defaults,noexec,nosuid,nodev
+
+- name: Update permissions
+  ansible.builtin.file:
+    path: /share
+    state: directory
+    mode: "0755"
+    owner: nobody
+
+- name: Get UUID of /share
+  ansible.builtin.command:
+    blkid /dev/sdb
+  register: sdb
+
+- name: Update fstab for /share
+  ansible.builtin.lineinfile:
+    path: /etc/fstab
+    insertafter: EOF
+    line: 'UUID={{ sdb.stdout | regex_search("(\w+-\w+-\w+-\w+-\w+)") }} /share ext4 discard,defaults,nofail 0 2'

@@ -1,0 +1,37 @@
+apiVersion: maps.k8s.elastic.co/v1alpha1
+kind: ElasticMapsServer
+metadata:
+  name: maps
+  namespace: prod
+spec:
+  version: 8.9.0
+  count: 1
+  elasticsearchRef:
+    name: elasticsearch
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: maps-ingress
+  namespace: prod
+  annotations:
+    cert-manager.io/cluster-issuer: "ca-issuer"
+    nginx.ingress.kubernetes.io/proxy-ssl-verify: "false" 
+    nginx.ingress.kubernetes.io/backend-protocol: "HTTPS" 
+spec:
+  ingressClassName: nginx
+  tls:
+  - hosts:
+    - maps.air-gap.demo
+    secretName: maps-tls
+  rules:
+  - host: maps.air-gap.demo
+    http:
+        paths:
+        - pathType: Prefix
+          path: /
+          backend:
+            service:
+              name: maps-ems-http
+              port:
+                name: https

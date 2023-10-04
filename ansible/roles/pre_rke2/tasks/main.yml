@@ -1,0 +1,36 @@
+---
+- name: Upload certificate
+  ansible.builtin.copy:
+    src: registry.crt
+    dest: /etc/pki/ca-trust/source/anchors/registry.crt
+    mode: "640"
+
+- name: Trust the certificate
+  ansible.builtin.shell:
+    update-ca-trust
+
+- name: Import gpg key
+  ansible.builtin.rpm_key:
+    state: present
+    key: https://rpm.rancher.io/public.key
+
+- name: Add extra disks to agents
+  ansible.builtin.include_tasks: extra_disks.yml
+  when: inventory_hostname in groups['rke2_agents']
+
+- name: Remount a mounted volume and append exec to the existing options
+  ansible.posix.mount:
+    path: /var
+    state: remounted
+    opts: exec
+
+- name: Update fstab for /var/lib
+  ansible.builtin.replace:
+    path: /etc/fstab
+    regexp: '/dev/sda4 /var xfs defaults,rw,nosuid,nodev,noexec,relatime 0 2'
+    replace: '/dev/sda4 /var xfs defaults,rw,nosuid,nodev,exec,relatime 0 2'
+  when: inventory_hostname not in groups['rke2_agents']
+
+- name: Reboot the machine (Wait for 5 min)
+  ansible.builtin.reboot:
+    reboot_timeout: 300
