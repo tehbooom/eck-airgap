@@ -57,6 +57,10 @@ During development, the second RKE2 server continued to fail on the initial boot
     ```
 
 3. You must have your Google credentials as an environment variable follow [this](https://registry.terraform.io/providers/hashicorp/google/latest/docs/guides/provider_reference.html#running-terraform-on-your-workstation) guide for instructions
+
+    ```bash
+    export GOOGLE_CREDENTIALS=<path_to_downloaded_json>
+    ```
   
 4. Deploy the infrastructure
 
@@ -86,6 +90,7 @@ During development, the second RKE2 server continued to fail on the initial boot
 
     ```bash
     kubectl apply -f k8s/cert-manager/cert-manager.yaml
+    # wait for cert-manager to be ready
     kubectl apply -f k8s/cert-manager/ca-issuer.yaml
     ```
 
@@ -190,7 +195,7 @@ During development, the second RKE2 server continued to fail on the initial boot
     kubectl apply -f k8s/eck/07_maps.yaml
     ```
 
-22. Update `/etc/hosts` with your loadbalancers external IP and FQDN to your services
+22. Update `/etc/hosts` with your loadbalancers external IP (found in [hosts.ini](ansible/hosts.ini) or in the GCP console) and FQDN to your services
 
     ```bash
     echo "<your_lb_external_ip> longhorn.air-gap.demo monitor.air-gap.demo prod.air-gap.demo maps.air-gap.demo" >> /etc/hosts
@@ -204,6 +209,8 @@ During development, the second RKE2 server continued to fail on the initial boot
     ```
 
 24. Login to your clusters! Ensure you update the default Elastic Artifact Registry and the path to Elastic Endpoint Artifact Repository in Kibana
+
+    > You may need to add an ingress for each of these services if Agents outside the k8s cluster need access
 
 ## Security
 
